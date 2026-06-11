@@ -1,0 +1,7 @@
+-- Optioneel: testdata. Gebruik dit pas nadat er een patiëntaccount bestaat en het patiëntrecord gekoppeld is.
+-- Vervang PATIENT_UUID door het id uit public.patients.
+-- insert into public.appointments (patient_id, title, care_type, starts_at, ends_at, location, status)
+-- values ('PATIENT_UUID', 'Thuisverpleging', 'Algemene verpleging', now() + interval '2 days', now() + interval '2 days 30 minutes', 'Aan huis', 'gepland');
+--
+-- insert into public.costs (patient_id, care_date, description, amount, status)
+-- values ('PATIENT_UUID', current_date, 'Test kost', 12.50, 'te betalen');
