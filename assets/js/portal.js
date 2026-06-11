@@ -6,7 +6,8 @@
     profile: null,
     patient: null,
     patients: [],
-    appointments: []
+    appointments: [],
+    recoveringPassword: false
   };
 
   const $ = (id) => document.getElementById(id);
@@ -62,8 +63,15 @@
   function setAuthPanel(name) {
     qsa('[data-auth-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.authTab === name));
     qsa('.auth-panel').forEach(p => p.classList.add('hidden'));
-    const formId = name === 'login' ? 'loginForm' : name === 'signup' ? 'signupForm' : 'resetForm';
-    $(formId).classList.remove('hidden');
+    const panels = {
+      login: 'loginForm',
+      signup: 'signupForm',
+      reset: 'resetForm',
+      newPassword: 'newPasswordForm'
+    };
+    const formId = panels[name] || 'loginForm';
+    $(formId)?.classList.remove('hidden');
+    if (name !== 'newPassword') app.recoveringPassword = false;
     setStatus('authStatus', '');
   }
 
@@ -85,6 +93,7 @@
     $('loginForm').addEventListener('submit', handleLogin);
     $('signupForm').addEventListener('submit', handleSignup);
     $('resetForm').addEventListener('submit', handleReset);
+    $('newPasswordForm')?.addEventListener('submit', handleNewPassword);
     $('logoutBtn').addEventListener('click', handleLogout);
     $('patientForm').addEventListener('submit', handlePatientUpsert);
     $('appointmentForm').addEventListener('submit', handleAppointmentCreate);
@@ -100,16 +109,33 @@
     }
 
     app.client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    app.client.auth.onAuthStateChange(async (eventName, session) => {
+      if (eventName === 'PASSWORD_RECOVERY') {
+        app.user = session?.user || null;
+        app.recoveringPassword = true;
+        showAuth();
+        setAuthPanel('newPassword');
+        setStatus('authStatus', 'Kies een nieuw wachtwoord om de reset af te ronden.', 'ok');
+        return;
+      }
+      if (app.recoveringPassword) return;
+      if (session?.user) await loadUser(session.user);
+      else showAuth();
+    });
+
     const { data } = await app.client.auth.getSession();
-    if (data.session?.user) {
+    const urlParams = new URLSearchParams((window.location.hash || window.location.search).replace(/^[#?]/, ''));
+    if (urlParams.get('type') === 'recovery' && data.session?.user) {
+      app.user = data.session.user;
+      app.recoveringPassword = true;
+      showAuth();
+      setAuthPanel('newPassword');
+      setStatus('authStatus', 'Kies een nieuw wachtwoord om de reset af te ronden.', 'ok');
+    } else if (data.session?.user) {
       await loadUser(data.session.user);
     } else {
       showAuth();
     }
-    app.client.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) await loadUser(session.user);
-      else showAuth();
-    });
   }
 
   async function handleLogin(event) {
@@ -136,7 +162,7 @@
       password,
       options: {
         data: { full_name: fullName, phone },
-        emailRedirectTo: cfg.siteUrl ? `${cfg.siteUrl}/klantenzone.html` : window.location.href
+        emailRedirectTo: cfg.siteUrl ? `${cfg.siteUrl}/patientenzone.html` : window.location.href
       }
     });
     if (error) return setStatus('authStatus', error.message, 'err');
@@ -151,9 +177,27 @@
     event.preventDefault();
     if (!app.client) return;
     const email = $('resetEmail').value.trim();
-    const { error } = await app.client.auth.resetPasswordForEmail(email, { redirectTo: cfg.siteUrl ? `${cfg.siteUrl}/klantenzone.html` : window.location.href });
+    const { error } = await app.client.auth.resetPasswordForEmail(email, { redirectTo: cfg.siteUrl ? `${cfg.siteUrl}/patientenzone.html` : window.location.href });
     if (error) return setStatus('authStatus', error.message, 'err');
     setStatus('authStatus', 'Resetlink verzonden als dit e-mailadres bestaat.', 'ok');
+  }
+
+  async function handleNewPassword(event) {
+    event.preventDefault();
+    if (!app.client) return;
+    const password = $('newPassword').value;
+    const confirm = $('newPasswordConfirm').value;
+    if (password.length < 10) return setStatus('authStatus', 'Gebruik minstens 10 tekens.', 'err');
+    if (password !== confirm) return setStatus('authStatus', 'De wachtwoorden komen niet overeen.', 'err');
+    setStatus('authStatus', 'Nieuw wachtwoord wordt opgeslagen...', '');
+    const { error } = await app.client.auth.updateUser({ password });
+    if (error) return setStatus('authStatus', error.message, 'err');
+    $('newPasswordForm').reset();
+    app.recoveringPassword = false;
+    await app.client.auth.signOut();
+    showAuth();
+    setAuthPanel('login');
+    setStatus('authStatus', 'Uw wachtwoord is aangepast. Meld u opnieuw aan met uw nieuwe wachtwoord.', 'ok');
   }
 
   async function handleLogout() {
@@ -253,8 +297,8 @@
   async function loadRequests() {
     const { data, error } = await app.client.from('callback_requests').select('*').order('created_at', { ascending: false });
     if (error) return console.error(error);
-    const rows = (data || []).map(r => `<tr><td>${esc(fmtDate.format(new Date(r.created_at)))}</td><td>${esc(r.name)}</td><td>${esc(r.phone)}</td><td>${esc(r.email || '')}</td><td>${esc(r.municipality || '')}</td><td>${esc(r.preferred_contact_time || '')}</td><td><span class="badge ${r.status === 'afgewerkt' ? 'green' : ''}">${esc(r.status)}</span></td><td><button class="btn btn-ghost btn-small" data-action="request-done" data-id="${esc(r.id)}">Afwerken</button></td></tr>`);
-    renderTable('requestsTable', ['Datum', 'Naam', 'Telefoon', 'E-mail', 'Gemeente', 'Moment', 'Status', 'Actie'], rows, 'Geen terugbelaanvragen gevonden.');
+    const rows = (data || []).map(r => `<tr><td>${esc(fmtDate.format(new Date(r.created_at)))}</td><td>${esc(r.name)}</td><td>${esc(r.phone)}</td><td>${esc(r.email || '')}</td><td>${esc(r.municipality || '')}</td><td>${esc(r.preferred_contact_time || '')}</td><td>${esc(r.message || '')}</td><td><span class="badge ${r.status === 'afgewerkt' ? 'green' : ''}">${esc(r.status)}</span></td><td><button class="btn btn-ghost btn-small" data-action="request-contacted" data-id="${esc(r.id)}">Gecontacteerd</button> <button class="btn btn-secondary btn-small" data-action="request-done" data-id="${esc(r.id)}">Afwerken</button></td></tr>`);
+    renderTable('requestsTable', ['Datum', 'Naam', 'Telefoon', 'E-mail', 'Gemeente', 'Moment', 'Boodschap', 'Status', 'Actie'], rows, 'Geen terugbelaanvragen gevonden.');
   }
 
   async function loadAdminAppointments() {
@@ -328,7 +372,10 @@
     const upload = await app.client.storage.from('patient-files').upload(path, file, { upsert: false, contentType: file.type || 'application/octet-stream' });
     if (upload.error) return setStatus('documentStatusMessage', upload.error.message, 'err');
     const { error } = await app.client.from('documents').insert({ patient_id: patientId, title: $('documentTitle').value.trim(), category: $('documentCategory').value, file_path: path, mime_type: file.type || null, file_size: file.size });
-    if (error) return setStatus('documentStatusMessage', error.message, 'err');
+    if (error) {
+      await app.client.storage.from('patient-files').remove([path]);
+      return setStatus('documentStatusMessage', error.message, 'err');
+    }
     $('documentForm').reset();
     setStatus('documentStatusMessage', 'Document opgeladen.', 'ok');
     await loadAdminDocuments();
@@ -356,21 +403,31 @@
         if (error) throw error;
         window.open(data.signedUrl, '_blank', 'noopener');
       }
+      if (action === 'request-contacted') {
+        const { error } = await app.client.from('callback_requests').update({ status: 'gecontacteerd' }).eq('id', btn.dataset.id);
+        if (error) throw error;
+        await loadRequests();
+      }
       if (action === 'request-done') {
-        await app.client.from('callback_requests').update({ status: 'afgewerkt' }).eq('id', btn.dataset.id);
+        const { error } = await app.client.from('callback_requests').update({ status: 'afgewerkt' }).eq('id', btn.dataset.id);
+        if (error) throw error;
         await loadRequests();
       }
       if (action === 'delete-appointment' && confirm('Afspraak verwijderen?')) {
-        await app.client.from('appointments').delete().eq('id', btn.dataset.id);
+        const { error } = await app.client.from('appointments').delete().eq('id', btn.dataset.id);
+        if (error) throw error;
         await loadAdminAppointments();
       }
       if (action === 'delete-cost' && confirm('Kost verwijderen?')) {
-        await app.client.from('costs').delete().eq('id', btn.dataset.id);
+        const { error } = await app.client.from('costs').delete().eq('id', btn.dataset.id);
+        if (error) throw error;
         await loadAdminCosts();
       }
       if (action === 'delete-doc' && confirm('Document verwijderen?')) {
-        await app.client.storage.from('patient-files').remove([btn.dataset.path]);
-        await app.client.from('documents').delete().eq('id', btn.dataset.id);
+        const removed = await app.client.storage.from('patient-files').remove([btn.dataset.path]);
+        if (removed.error) throw removed.error;
+        const { error } = await app.client.from('documents').delete().eq('id', btn.dataset.id);
+        if (error) throw error;
         await loadAdminDocuments();
       }
       if (action === 'ics') {
@@ -392,7 +449,7 @@
     const end = icsDate(appt.ends_at || new Date(new Date(appt.starts_at).getTime() + 30 * 60000));
     const title = (appt.title || 'Afspraak Tamara Thuisverpleging').replace(/\n/g, ' ');
     const location = (appt.location || '').replace(/\n/g, ' ');
-    const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Tamara Thuisverpleging//Klantenzone//NL\nBEGIN:VEVENT\nUID:${appt.id}@thuisverplegingtamara.be\nDTSTAMP:${icsDate(new Date())}\nDTSTART:${start}\nDTEND:${end}\nSUMMARY:${title}\nLOCATION:${location}\nEND:VEVENT\nEND:VCALENDAR`;
+    const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Tamara Thuisverpleging//Patientenzone//NL\nBEGIN:VEVENT\nUID:${appt.id}@thuisverplegingtamara.be\nDTSTAMP:${icsDate(new Date())}\nDTSTART:${start}\nDTEND:${end}\nSUMMARY:${title}\nLOCATION:${location}\nEND:VEVENT\nEND:VCALENDAR`;
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
