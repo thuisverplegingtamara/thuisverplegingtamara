@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="nl-BE">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Klantenzone | Tamara Thuisverpleging</title>
+  <meta name="description" content="Beveiligde klantenzone voor afspraken, dossierdocumenten en kostenoverzicht van Tamara Thuisverpleging.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#6f8157">
+  <link rel="stylesheet" href="assets/css/styles.css">
+</head>
+<body class="portal-page">
+<a class="skip-link" href="#portalApp">Naar klantenzone</a>
+<header class="site-header">
+  <div class="container nav">
+    <a class="brand" href="index.html" aria-label="Terug naar home">
+      <img class="brand-logo" src="assets/img/logo.png" alt="Logo Tamara Thuisverpleging">
+      <span class="brand-text"><strong>Tamara</strong><span>Thuisverpleging</span></span>
+    </a>
+    <nav class="nav-links" aria-label="Klantenzone navigatie">
+      <a href="index.html#diensten">Diensten</a>
+      <a href="index.html#contact">Contact</a>
+      <a class="always" href="index.html">Website</a>
+    </nav>
+  </div>
+</header>
+
+<main id="portalApp" class="portal-shell">
+  <section id="authView" class="auth-card portal-card">
+    <p class="eyebrow">Beveiligde klantenzone</p>
+    <h1 style="font-size:clamp(2rem,6vw,3.8rem)">Klantenzone</h1>
+    <p class="lead">Raadpleeg afspraken, dossierdocumenten en kostenoverzichten. Deel via de klantenzone alleen informatie wanneer Tamara u daar expliciet om vraagt.</p>
+    <div id="configWarning" class="notice danger hidden">Supabase is nog niet geconfigureerd in <code>assets/js/config.js</code>. De klantenzone werkt pas nadat de database en sleutel ingesteld zijn.</div>
+
+    <div class="auth-tabs" role="tablist" aria-label="Aanmelden of account aanvragen">
+      <button type="button" class="active" data-auth-tab="login">Aanmelden</button>
+      <button type="button" data-auth-tab="signup">Login aanvragen</button>
+      <button type="button" data-auth-tab="reset">Wachtwoord resetten</button>
+    </div>
+
+    <form id="loginForm" class="auth-panel">
+      <div class="form-grid">
+        <div class="full"><label for="loginEmail">E-mail</label><input id="loginEmail" type="email" autocomplete="email" required></div>
+        <div class="full"><label for="loginPassword">Wachtwoord</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+      </div>
+      <div class="toolbar"><button class="btn btn-primary" type="submit">Aanmelden</button><a class="btn btn-ghost" href="index.html#contact">Contact opnemen</a></div>
+    </form>
+
+    <form id="signupForm" class="auth-panel hidden">
+      <div class="notice">Een nieuw account blijft eerst in wachtstand. Tamara koppelt het account aan uw patiëntendossier.</div>
+      <div class="form-grid" style="margin-top:14px">
+        <div><label for="signupName">Naam</label><input id="signupName" autocomplete="name" required></div>
+        <div><label for="signupPhone">Telefoon</label><input id="signupPhone" autocomplete="tel"></div>
+        <div class="full"><label for="signupEmail">E-mail</label><input id="signupEmail" type="email" autocomplete="email" required></div>
+        <div class="full"><label for="signupPassword">Wachtwoord</label><input id="signupPassword" type="password" autocomplete="new-password" minlength="10" required></div>
+      </div>
+      <div class="toolbar"><button class="btn btn-primary" type="submit">Account aanvragen</button></div>
+    </form>
+
+    <form id="resetForm" class="auth-panel hidden">
+      <div class="form-grid">
+        <div class="full"><label for="resetEmail">E-mail</label><input id="resetEmail" type="email" autocomplete="email" required></div>
+      </div>
+      <div class="toolbar"><button class="btn btn-primary" type="submit">Resetlink verzenden</button></div>
+    </form>
+    <p id="authStatus" class="status" role="status" aria-live="polite"></p>
+  </section>
+
+  <section id="dashboardView" class="container portal-layout hidden" aria-live="polite">
+    <aside class="portal-sidebar">
+      <a class="brand" href="index.html"><img class="brand-logo" src="assets/img/logo.png" alt="Logo"><span class="brand-text"><strong>Tamara</strong><span>Klantenzone</span></span></a>
+      <div style="margin-top:14px">
+        <span id="roleBadge" class="badge green">Patiënt</span>
+        <p id="userIdentity" class="muted" style="margin:.7rem 0 0"></p>
+      </div>
+      <div id="patientMenu" class="portal-menu">
+        <button data-view="patientOverview" class="active">Overzicht</button>
+        <button data-view="patientAppointments">Agenda</button>
+        <button data-view="patientDocuments">Dossier</button>
+        <button data-view="patientCosts">Kosten</button>
+      </div>
+      <div id="adminMenu" class="portal-menu hidden">
+        <button data-view="adminOverview" class="active">Admin overzicht</button>
+        <button data-view="adminRequests">Terugbelaanvragen</button>
+        <button data-view="adminPatients">Patiënten</button>
+        <button data-view="adminAppointments">Afspraken</button>
+        <button data-view="adminDocuments">Dossierdocumenten</button>
+        <button data-view="adminCosts">Kosten</button>
+      </div>
+      <button id="logoutBtn" class="btn btn-secondary" style="width:100%;margin-top:18px">Afmelden</button>
+    </aside>
+
+    <div class="portal-main">
+      <section class="portal-view" id="patientOverview">
+        <div class="portal-card"><h2>Welkom</h2><p id="patientIntro" class="lead">Uw gegevens worden geladen...</p></div>
+        <div class="cards"><div class="portal-card"><h3>Volgende afspraak</h3><div id="nextAppointment">Geen afspraak gevonden.</div></div><div class="portal-card"><h3>Openstaand bedrag</h3><div id="openAmount">€ 0,00</div></div></div>
+      </section>
+
+      <section class="portal-view hidden" id="patientAppointments">
+        <div class="portal-card"><h2>Agenda</h2><p class="muted">Hier ziet u uw geplande en voorbije afspraken.</p><div id="patientAppointmentsTable"></div></div>
+      </section>
+
+      <section class="portal-view hidden" id="patientDocuments">
+        <div class="portal-card"><h2>Patiëntendossier</h2><p class="notice">Dossierdocumenten worden privé opgeslagen. Downloadlinks zijn tijdelijk geldig.</p><div id="patientDocumentsTable"></div></div>
+      </section>
+
+      <section class="portal-view hidden" id="patientCosts">
+        <div class="portal-card"><h2>Kostenoverzicht</h2><p class="muted">Hier ziet u de geregistreerde kosten en status.</p><div id="patientCostsTable"></div></div>
+      </section>
+
+      <section class="portal-view hidden" id="adminOverview">
+        <div class="portal-card"><h2>Admin overzicht</h2><p class="lead">Beheer terugbelaanvragen, patiënten, afspraken, dossierdocumenten en kosten.</p><div id="adminStats" class="cards"></div></div>
+      </section>
+
+      <section class="portal-view hidden" id="adminRequests">
+        <div class="portal-card"><h2>Terugbelaanvragen</h2><div class="toolbar"><button class="btn btn-ghost btn-small" data-refresh="requests">Vernieuwen</button></div><div id="requestsTable"></div></div>
+      </section>
+
+      <section class="portal-view hidden" id="adminPatients">
+        <div class="portal-card">
+          <h2>Patiënten</h2>
+          <p class="notice">Laat een patiënt eerst een login aanvragen. Daarna kan u het e-mailadres hier koppelen.</p>
+          <form id="patientForm" class="form-grid">
+            <div><label for="patientName">Naam</label><input id="patientName" required></div>
+            <div><label for="patientEmail">Login e-mail</label><input id="patientEmail" type="email" required></div>
+            <div><label for="patientPhone">Telefoon</label><input id="patientPhone"></div>
+            <div><label for="patientMunicipality">Gemeente</label><select id="patientMunicipality"><option>Zonhoven</option><option>Houthalen</option><option>Zolder</option><option>Andere</option></select></div>
+            <div class="full"><button class="btn btn-primary" type="submit">Patiënt toevoegen/koppelen</button></div>
+          </form>
+          <p id="patientFormStatus" class="status"></p>
+        </div>
+        <div class="portal-card"><h3>Patiëntenlijst</h3><div id="patientsTable"></div></div>
+      </section>
+
+      <section class="portal-view hidden" id="adminAppointments">
+        <div class="portal-card">
+          <h2>Afspraken beheren</h2>
+          <form id="appointmentForm" class="form-grid">
+            <div class="full"><label for="appointmentPatient">Patiënt</label><select id="appointmentPatient" required></select></div>
+            <div><label for="appointmentTitle">Titel</label><input id="appointmentTitle" value="Thuisverpleging" required></div>
+            <div><label for="appointmentType">Zorgtype</label><select id="appointmentType"><option>Algemene verpleging</option><option>Wondzorg</option><option>Controle</option><option>Andere</option></select></div>
+            <div><label for="appointmentStart">Start</label><input id="appointmentStart" type="datetime-local" required></div>
+            <div><label for="appointmentEnd">Einde</label><input id="appointmentEnd" type="datetime-local"></div>
+            <div><label for="appointmentLocation">Locatie</label><input id="appointmentLocation" placeholder="Aan huis"></div>
+            <div><label for="appointmentStatus">Status</label><select id="appointmentStatus"><option>gepland</option><option>uitgevoerd</option><option>geannuleerd</option></select></div>
+            <div class="full"><label for="appointmentNotes">Korte nota</label><textarea id="appointmentNotes" placeholder="Vermijd onnodige medische details."></textarea></div>
+            <div class="full"><button class="btn btn-primary" type="submit">Afspraak opslaan</button></div>
+          </form>
+          <p id="appointmentStatusMessage" class="status"></p>
+        </div>
+        <div class="portal-card"><h3>Alle afspraken</h3><div id="appointmentsTable"></div></div>
+      </section>
+
+      <section class="portal-view hidden" id="adminDocuments">
+        <div class="portal-card">
+          <h2>Dossierdocumenten beheren</h2>
+          <form id="documentForm" class="form-grid">
+            <div class="full"><label for="documentPatient">Patiënt</label><select id="documentPatient" required></select></div>
+            <div><label for="documentTitle">Titel</label><input id="documentTitle" required></div>
+            <div><label for="documentCategory">Categorie</label><select id="documentCategory"><option>Algemeen</option><option>Wondzorg</option><option>Voorschrift</option><option>Facturatie</option><option>Andere</option></select></div>
+            <div class="full"><label for="documentFile">Bestand</label><input id="documentFile" type="file" accept="application/pdf,image/png,image/jpeg" required></div>
+            <div class="full"><button class="btn btn-primary" type="submit">Document uploaden</button></div>
+          </form>
+          <p id="documentStatusMessage" class="status"></p>
+        </div>
+        <div class="portal-card"><h3>Documenten</h3><div id="documentsTable"></div></div>
+      </section>
+
+      <section class="portal-view hidden" id="adminCosts">
+        <div class="portal-card">
+          <h2>Kosten beheren</h2>
+          <form id="costForm" class="form-grid">
+            <div class="full"><label for="costPatient">Patiënt</label><select id="costPatient" required></select></div>
+            <div><label for="costDate">Datum zorg</label><input id="costDate" type="date" required></div>
+            <div><label for="costAmount">Bedrag (€)</label><input id="costAmount" type="number" step="0.01" min="0" required></div>
+            <div><label for="costStatus">Status</label><select id="costStatus"><option>in verwerking</option><option>te betalen</option><option>betaald</option></select></div>
+            <div class="full"><label for="costDescription">Omschrijving</label><input id="costDescription" placeholder="Bijvoorbeeld: remgeld / verzorging" required></div>
+            <div class="full"><label for="costNotes">Nota</label><textarea id="costNotes"></textarea></div>
+            <div class="full"><button class="btn btn-primary" type="submit">Kost opslaan</button></div>
+          </form>
+          <p id="costStatusMessage" class="status"></p>
+        </div>
+        <div class="portal-card"><h3>Kostenoverzicht</h3><div id="costsTable"></div></div>
+      </section>
+    </div>
+  </section>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="assets/js/config.js"></script>
+<script src="assets/js/portal.js"></script>
+</body>
+</html>
