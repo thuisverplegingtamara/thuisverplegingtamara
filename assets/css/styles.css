@@ -227,9 +227,6 @@ tr:last-child td { border-bottom:0; }
 }
 @media (max-width: 640px) {
   .container { width: min(100% - 26px, var(--max)); }
-  .brand-logo { width: 52px; height: 52px; border-radius: 16px; }
-  .brand-text strong { font-size: 1.34rem; }
-  .brand-text span { font-size: 1.08rem; }
   .nav-links a:not(.always) { display: none; }
   .hero { padding-top: 46px; }
   .hero-card { padding: 22px; border-radius: 28px; }
@@ -237,4 +234,25 @@ tr:last-child td { border-bottom:0; }
   .footer-grid { grid-template-columns:1fr; }
   .footer-links { justify-content:flex-start; }
   .section { padding: 52px 0; }
+}
+
+/* Security hardening helpers */
+.hp-field {
+  position: absolute !important;
+  left: -10000px !important;
+  top: auto !important;
+  width: 1px !important;
+  height: 1px !important;
+  overflow: hidden !important;
+}
+button:disabled,
+.btn[disabled] {
+  opacity: .62;
+  cursor: not-allowed;
+  transform: none !important;
+}
+.notice.danger {
+  background: rgba(155,56,50,.10);
+  border-color: rgba(155,56,50,.25);
+  color: #9b3832;
 }

@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /patientenzone.html
+Disallow: /klantenzone.html
+Disallow: /supabase/
+Disallow: /docs/

@@ -6,6 +6,8 @@
   <title>Tamara Thuisverpleging | Zonhoven, Houthalen en Zolder</title>
   <meta name="description" content="Tamara Thuisverpleging biedt algemene verpleging en referentieverpleegkundige wondzorg aan huis in Zonhoven, Houthalen en Zolder.">
   <meta name="theme-color" content="#6f8157">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://rwomgpjzsxrfpjnibrjn.supabase.co; img-src 'self' data:; style-src 'self' 'unsafe-inline'; form-action 'self'; upgrade-insecure-requests">
   <meta property="og:title" content="Tamara Thuisverpleging">
   <meta property="og:description" content="Algemene verpleging en referentieverpleegkundige in wondzorg in Zonhoven, Houthalen en Zolder.">
   <meta property="og:type" content="website">
@@ -147,13 +149,17 @@
           <p>Vul enkel praktische contactgegevens in. Deel via dit formulier geen medische informatie of foto's.</p>
         </div>
         <div class="notice">Voor medische vragen of dringende situaties: bel rechtstreeks naar Tamara.</div>
+        <div class="hp-field" aria-hidden="true">
+          <label for="website">Website</label>
+          <input id="website" name="website" tabindex="-1" autocomplete="off">
+        </div>
         <div class="form-grid" style="margin-top:16px">
-          <div><label for="name">Naam</label><input id="name" name="name" autocomplete="name" required></div>
-          <div><label for="phone">Telefoon</label><input id="phone" name="phone" autocomplete="tel" required></div>
-          <div><label for="email">E-mail optioneel</label><input id="email" name="email" type="email" autocomplete="email"></div>
+          <div><label for="name">Naam</label><input id="name" name="name" autocomplete="name" maxlength="120" required></div>
+          <div><label for="phone">Telefoon</label><input id="phone" name="phone" autocomplete="tel" maxlength="40" required></div>
+          <div><label for="email">E-mail optioneel</label><input id="email" name="email" type="email" autocomplete="email" maxlength="160"></div>
           <div><label for="municipality">Gemeente</label><select id="municipality" name="municipality" required><option value="">Kies gemeente</option><option>Zonhoven</option><option>Houthalen</option><option>Zolder</option><option>Andere</option></select></div>
-          <div class="full"><label for="preferred">Gewenst contactmoment</label><input id="preferred" name="preferred" placeholder="Bijvoorbeeld: maandagvoormiddag"></div>
-          <div class="full"><label for="message">Praktische boodschap optioneel</label><textarea id="message" name="message" placeholder="Geen medische info of foto's delen via dit formulier."></textarea></div>
+          <div class="full"><label for="preferred">Gewenst contactmoment</label><input id="preferred" name="preferred" maxlength="160" placeholder="Bijvoorbeeld: maandagvoormiddag"></div>
+          <div class="full"><label for="message">Praktische boodschap optioneel</label><textarea id="message" name="message" maxlength="800" placeholder="Geen medische info of foto's delen via dit formulier."></textarea></div>
         </div>
         <div class="toolbar"><button class="btn btn-primary" type="submit">Verstuur terugbelverzoek</button><a class="btn btn-ghost" href="mailto:thuisverplegingvoftamara@gmail.com">E-mail openen</a></div>
         <p id="formStatus" class="status" role="status" aria-live="polite"></p>

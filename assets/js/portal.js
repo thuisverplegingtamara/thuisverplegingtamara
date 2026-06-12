@@ -1,5 +1,9 @@
 (function () {
   const cfg = window.TAMARA_CONFIG || {};
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
+  const ALLOWED_MIME = new Set(['application/pdf', 'image/png', 'image/jpeg']);
+  const LOGIN_BACKOFF_MS = 15000;
+
   const app = {
     client: null,
     user: null,
@@ -24,6 +28,26 @@
     return String(value ?? '').replace(/[&<>'"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[ch]));
   }
 
+  function clean(value, max = 200) {
+    return String(value || '').trim().replace(/\s+/g, ' ').slice(0, max);
+  }
+
+  function cleanEmail(value) {
+    return clean(value, 160).toLowerCase();
+  }
+
+  function validEmail(value) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(value || '');
+  }
+
+  function validPhone(value) {
+    return !value || /^[0-9+()/.\-\s]{7,40}$/.test(value);
+  }
+
+  function strongEnough(password) {
+    return typeof password === 'string' && password.length >= 12;
+  }
+
   function setStatus(id, message, type = '') {
     const el = $(id);
     if (!el) return;
@@ -31,26 +55,27 @@
     el.className = 'status ' + type;
   }
 
-  function isoToLocalInput(date) {
-    if (!date) return '';
-    const d = new Date(date);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    return d.toISOString().slice(0, 16);
+  function setBusy(formOrButton, busy) {
+    if (!formOrButton) return;
+    const buttons = formOrButton.matches?.('button') ? [formOrButton] : Array.from(formOrButton.querySelectorAll('button[type="submit"], button[data-action]'));
+    buttons.forEach(btn => { btn.disabled = Boolean(busy); });
   }
 
   function localInputToIso(value) {
     if (!value) return null;
-    return new Date(value).toISOString();
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toISOString();
   }
 
   function showAuth() {
-    $('authView').classList.remove('hidden');
-    $('dashboardView').classList.add('hidden');
+    $('authView')?.classList.remove('hidden');
+    $('dashboardView')?.classList.add('hidden');
   }
 
   function showDashboard() {
-    $('authView').classList.add('hidden');
-    $('dashboardView').classList.remove('hidden');
+    $('authView')?.classList.add('hidden');
+    $('dashboardView')?.classList.remove('hidden');
   }
 
   function showView(viewId) {
@@ -63,14 +88,8 @@
   function setAuthPanel(name) {
     qsa('[data-auth-tab]').forEach(btn => btn.classList.toggle('active', btn.dataset.authTab === name));
     qsa('.auth-panel').forEach(p => p.classList.add('hidden'));
-    const panels = {
-      login: 'loginForm',
-      signup: 'signupForm',
-      reset: 'resetForm',
-      newPassword: 'newPasswordForm'
-    };
-    const formId = panels[name] || 'loginForm';
-    $(formId)?.classList.remove('hidden');
+    const panels = { login: 'loginForm', signup: 'signupForm', reset: 'resetForm', newPassword: 'newPasswordForm' };
+    $(panels[name] || 'loginForm')?.classList.remove('hidden');
     if (name !== 'newPassword') app.recoveringPassword = false;
     setStatus('authStatus', '');
   }
@@ -85,30 +104,45 @@
     target.innerHTML = `<div class="table-wrap"><table><thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
   }
 
+  function lastLoginAttemptTooSoon() {
+    try {
+      const last = Number(localStorage.getItem('tamara:lastLoginFail') || '0');
+      return Date.now() - last < LOGIN_BACKOFF_MS;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function markLoginFailure() {
+    try { localStorage.setItem('tamara:lastLoginFail', String(Date.now())); } catch (_) {}
+  }
+
   async function init() {
     qsa('[data-auth-tab]').forEach(btn => btn.addEventListener('click', () => setAuthPanel(btn.dataset.authTab)));
     qsa('.portal-menu button').forEach(btn => btn.addEventListener('click', () => showView(btn.dataset.view)));
     qsa('[data-refresh]').forEach(btn => btn.addEventListener('click', () => refreshAdminSection(btn.dataset.refresh)));
 
-    $('loginForm').addEventListener('submit', handleLogin);
-    $('signupForm').addEventListener('submit', handleSignup);
-    $('resetForm').addEventListener('submit', handleReset);
+    $('loginForm')?.addEventListener('submit', handleLogin);
+    $('signupForm')?.addEventListener('submit', handleSignup);
+    $('resetForm')?.addEventListener('submit', handleReset);
     $('newPasswordForm')?.addEventListener('submit', handleNewPassword);
-    $('logoutBtn').addEventListener('click', handleLogout);
-    $('patientForm').addEventListener('submit', handlePatientUpsert);
-    $('appointmentForm').addEventListener('submit', handleAppointmentCreate);
-    $('documentForm').addEventListener('submit', handleDocumentUpload);
-    $('costForm').addEventListener('submit', handleCostCreate);
-
+    $('logoutBtn')?.addEventListener('click', handleLogout);
+    $('patientForm')?.addEventListener('submit', handlePatientUpsert);
+    $('appointmentForm')?.addEventListener('submit', handleAppointmentCreate);
+    $('documentForm')?.addEventListener('submit', handleDocumentUpload);
+    $('costForm')?.addEventListener('submit', handleCostCreate);
     document.addEventListener('click', handleActionClick);
 
     if (!configured()) {
-      $('configWarning').classList.remove('hidden');
+      $('configWarning')?.classList.remove('hidden');
       setStatus('authStatus', 'Configureer eerst Supabase voordat de login werkt.', 'err');
       return;
     }
 
-    app.client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey);
+    app.client = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+    });
+
     app.client.auth.onAuthStateChange(async (eventName, session) => {
       if (eventName === 'PASSWORD_RECOVERY') {
         app.user = session?.user || null;
@@ -141,22 +175,38 @@
   async function handleLogin(event) {
     event.preventDefault();
     if (!app.client) return;
-    setStatus('authStatus', 'Aanmelden...', '');
-    const email = $('loginEmail').value.trim();
+    if (lastLoginAttemptTooSoon()) {
+      return setStatus('authStatus', 'Te veel pogingen. Wacht enkele seconden en probeer opnieuw.', 'err');
+    }
+    const form = event.currentTarget;
+    const email = cleanEmail($('loginEmail').value);
     const password = $('loginPassword').value;
+    if (!validEmail(email) || !password) return setStatus('authStatus', 'Controleer e-mail en wachtwoord.', 'err');
+    setBusy(form, true);
+    setStatus('authStatus', 'Aanmelden...', '');
     const { data, error } = await app.client.auth.signInWithPassword({ email, password });
-    if (error) return setStatus('authStatus', error.message, 'err');
+    setBusy(form, false);
+    if (error) {
+      markLoginFailure();
+      console.error(error);
+      return setStatus('authStatus', 'Aanmelden mislukt. Controleer uw gegevens of reset uw wachtwoord.', 'err');
+    }
     await loadUser(data.user);
   }
 
   async function handleSignup(event) {
     event.preventDefault();
     if (!app.client) return;
-    setStatus('authStatus', 'Accountaanvraag wordt verzonden...', '');
-    const fullName = $('signupName').value.trim();
-    const phone = $('signupPhone').value.trim();
-    const email = $('signupEmail').value.trim();
+    const form = event.currentTarget;
+    const fullName = clean($('signupName').value, 120);
+    const phone = clean($('signupPhone').value, 40);
+    const email = cleanEmail($('signupEmail').value);
     const password = $('signupPassword').value;
+    if (!fullName || !validEmail(email) || !strongEnough(password) || !validPhone(phone)) {
+      return setStatus('authStatus', 'Controleer naam, telefoon, e-mail en wachtwoord. Gebruik minstens 12 tekens.', 'err');
+    }
+    setBusy(form, true);
+    setStatus('authStatus', 'Accountaanvraag wordt verzonden...', '');
     const { data, error } = await app.client.auth.signUp({
       email,
       password,
@@ -165,10 +215,15 @@
         emailRedirectTo: cfg.siteUrl ? `${cfg.siteUrl}/patientenzone.html` : window.location.href
       }
     });
-    if (error) return setStatus('authStatus', error.message, 'err');
+    setBusy(form, false);
+    if (error) {
+      console.error(error);
+      return setStatus('authStatus', 'Accountaanvraag kon niet verwerkt worden. Controleer het e-mailadres of contacteer Tamara.', 'err');
+    }
     if (data.session?.user) {
       await app.client.from('profiles').update({ full_name: fullName, phone, status: 'pending' }).eq('id', data.session.user.id);
     }
+    form.reset();
     setStatus('authStatus', 'Accountaanvraag ontvangen. Controleer eventueel uw mailbox en wacht tot Tamara uw account koppelt.', 'ok');
     setAuthPanel('login');
   }
@@ -176,9 +231,13 @@
   async function handleReset(event) {
     event.preventDefault();
     if (!app.client) return;
-    const email = $('resetEmail').value.trim();
+    const email = cleanEmail($('resetEmail').value);
+    if (!validEmail(email)) return setStatus('authStatus', 'Controleer het e-mailadres.', 'err');
+    const form = event.currentTarget;
+    setBusy(form, true);
     const { error } = await app.client.auth.resetPasswordForEmail(email, { redirectTo: cfg.siteUrl ? `${cfg.siteUrl}/patientenzone.html` : window.location.href });
-    if (error) return setStatus('authStatus', error.message, 'err');
+    setBusy(form, false);
+    if (error) console.error(error);
     setStatus('authStatus', 'Resetlink verzonden als dit e-mailadres bestaat.', 'ok');
   }
 
@@ -187,12 +246,18 @@
     if (!app.client) return;
     const password = $('newPassword').value;
     const confirm = $('newPasswordConfirm').value;
-    if (password.length < 10) return setStatus('authStatus', 'Gebruik minstens 10 tekens.', 'err');
+    if (!strongEnough(password)) return setStatus('authStatus', 'Gebruik minstens 12 tekens.', 'err');
     if (password !== confirm) return setStatus('authStatus', 'De wachtwoorden komen niet overeen.', 'err');
+    const form = event.currentTarget;
+    setBusy(form, true);
     setStatus('authStatus', 'Nieuw wachtwoord wordt opgeslagen...', '');
     const { error } = await app.client.auth.updateUser({ password });
-    if (error) return setStatus('authStatus', error.message, 'err');
-    $('newPasswordForm').reset();
+    setBusy(form, false);
+    if (error) {
+      console.error(error);
+      return setStatus('authStatus', 'Het wachtwoord kon niet aangepast worden. Vraag eventueel een nieuwe resetlink aan.', 'err');
+    }
+    form.reset();
     app.recoveringPassword = false;
     await app.client.auth.signOut();
     showAuth();
@@ -203,7 +268,7 @@
   async function handleLogout() {
     if (!app.client) return;
     await app.client.auth.signOut();
-    app.user = null; app.profile = null; app.patient = null;
+    app.user = null; app.profile = null; app.patient = null; app.patients = []; app.appointments = [];
     showAuth();
   }
 
@@ -216,6 +281,11 @@
       return;
     }
     app.profile = profile || { id: user.id, email: user.email, role: 'patient', status: 'pending' };
+    if (app.profile.status === 'disabled') {
+      await app.client.auth.signOut();
+      showAuth();
+      return setStatus('authStatus', 'Dit account is niet actief. Contacteer Tamara.', 'err');
+    }
     $('userIdentity').textContent = app.profile.full_name || user.email;
     const isAdmin = app.profile.role === 'admin' && app.profile.status === 'active';
     $('roleBadge').textContent = isAdmin ? 'Admin' : 'Patiënt';
@@ -282,6 +352,10 @@
 
   async function refreshAdminSection(section) {
     if (section === 'requests') await loadRequests();
+    if (section === 'patients') await loadPatients();
+    if (section === 'appointments') await loadAdminAppointments();
+    if (section === 'documents') await loadAdminDocuments();
+    if (section === 'costs') await loadAdminCosts();
   }
 
   async function loadPatients() {
@@ -325,37 +399,53 @@
 
   async function handlePatientUpsert(event) {
     event.preventDefault();
-    const fullName = $('patientName').value.trim();
-    const email = $('patientEmail').value.trim().toLowerCase();
-    const phone = $('patientPhone').value.trim();
+    const form = event.currentTarget;
+    const fullName = clean($('patientName').value, 120);
+    const email = cleanEmail($('patientEmail').value);
+    const phone = clean($('patientPhone').value, 40);
     const municipality = $('patientMunicipality').value;
+    if (!fullName || !validEmail(email) || !validPhone(phone)) return setStatus('patientFormStatus', 'Controleer naam, e-mail en telefoon.', 'err');
+    setBusy(form, true);
     setStatus('patientFormStatus', 'Patiënt wordt opgeslagen...', '');
-    const { data: profile } = await app.client.from('profiles').select('id,email').eq('email', email).maybeSingle();
-    const payload = { full_name: fullName, email, phone, municipality, active: true, user_id: profile?.id || null };
+    const { data: profile, error: profileError } = await app.client.from('profiles').select('id,email').eq('email', email).maybeSingle();
+    if (profileError) {
+      setBusy(form, false);
+      return setStatus('patientFormStatus', 'Profiel kon niet gecontroleerd worden.', 'err');
+    }
+    const payload = { full_name: fullName, email, phone: phone || null, municipality, active: true, user_id: profile?.id || null };
     const { error } = await app.client.from('patients').upsert(payload, { onConflict: 'email' });
+    if (!error && profile?.id) await app.client.from('profiles').update({ role: 'patient', status: 'active', full_name: fullName, phone: phone || null }).eq('id', profile.id);
+    setBusy(form, false);
     if (error) return setStatus('patientFormStatus', error.message, 'err');
-    if (profile?.id) await app.client.from('profiles').update({ role: 'patient', status: 'active', full_name: fullName, phone }).eq('id', profile.id);
-    $('patientForm').reset();
+    form.reset();
     setStatus('patientFormStatus', profile?.id ? 'Patiënt opgeslagen en login gekoppeld.' : 'Patiënt opgeslagen. Login nog niet gekoppeld: patiënt moet zich eerst aanmelden/registreren met dit e-mailadres.', 'ok');
     await loadPatients();
   }
 
   async function handleAppointmentCreate(event) {
     event.preventDefault();
-    setStatus('appointmentStatusMessage', 'Afspraak wordt opgeslagen...', '');
+    const form = event.currentTarget;
+    const startsAt = localInputToIso($('appointmentStart').value);
+    const endsAt = localInputToIso($('appointmentEnd').value);
+    if (!startsAt) return setStatus('appointmentStatusMessage', 'Kies een geldige startdatum.', 'err');
+    if (endsAt && new Date(endsAt) < new Date(startsAt)) return setStatus('appointmentStatusMessage', 'Eindtijd mag niet vóór starttijd liggen.', 'err');
     const payload = {
       patient_id: $('appointmentPatient').value,
-      title: $('appointmentTitle').value.trim(),
+      title: clean($('appointmentTitle').value, 120),
       care_type: $('appointmentType').value,
-      starts_at: localInputToIso($('appointmentStart').value),
-      ends_at: localInputToIso($('appointmentEnd').value),
-      location: $('appointmentLocation').value.trim() || 'Aan huis',
+      starts_at: startsAt,
+      ends_at: endsAt,
+      location: clean($('appointmentLocation').value, 160) || 'Aan huis',
       status: $('appointmentStatus').value,
-      notes: $('appointmentNotes').value.trim() || null
+      notes: clean($('appointmentNotes').value, 1000) || null
     };
+    if (!payload.patient_id || !payload.title) return setStatus('appointmentStatusMessage', 'Kies een patiënt en titel.', 'err');
+    setBusy(form, true);
+    setStatus('appointmentStatusMessage', 'Afspraak wordt opgeslagen...', '');
     const { error } = await app.client.from('appointments').insert(payload);
+    setBusy(form, false);
     if (error) return setStatus('appointmentStatusMessage', error.message, 'err');
-    $('appointmentForm').reset();
+    form.reset();
     $('appointmentTitle').value = 'Thuisverpleging';
     setStatus('appointmentStatusMessage', 'Afspraak opgeslagen.', 'ok');
     await loadAdminAppointments();
@@ -363,31 +453,55 @@
 
   async function handleDocumentUpload(event) {
     event.preventDefault();
-    setStatus('documentStatusMessage', 'Document wordt opgeladen...', '');
+    const form = event.currentTarget;
     const patientId = $('documentPatient').value;
+    const title = clean($('documentTitle').value, 160);
     const file = $('documentFile').files[0];
-    if (!file) return setStatus('documentStatusMessage', 'Kies een bestand.', 'err');
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-');
+    if (!patientId || !title || !file) return setStatus('documentStatusMessage', 'Kies patiënt, titel en bestand.', 'err');
+    if (!ALLOWED_MIME.has(file.type)) return setStatus('documentStatusMessage', 'Alleen PDF, PNG en JPG zijn toegelaten.', 'err');
+    if (file.size > MAX_FILE_SIZE) return setStatus('documentStatusMessage', 'Bestand is te groot. Maximum is 10 MB.', 'err');
+    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-120);
     const path = `${patientId}/${crypto.randomUUID()}-${safeName}`;
+    setBusy(form, true);
+    setStatus('documentStatusMessage', 'Document wordt opgeladen...', '');
     const upload = await app.client.storage.from('patient-files').upload(path, file, { upsert: false, contentType: file.type || 'application/octet-stream' });
-    if (upload.error) return setStatus('documentStatusMessage', upload.error.message, 'err');
-    const { error } = await app.client.from('documents').insert({ patient_id: patientId, title: $('documentTitle').value.trim(), category: $('documentCategory').value, file_path: path, mime_type: file.type || null, file_size: file.size });
+    if (upload.error) {
+      setBusy(form, false);
+      return setStatus('documentStatusMessage', upload.error.message, 'err');
+    }
+    const { error } = await app.client.from('documents').insert({ patient_id: patientId, title, category: $('documentCategory').value, file_path: path, mime_type: file.type || null, file_size: file.size });
     if (error) {
       await app.client.storage.from('patient-files').remove([path]);
+      setBusy(form, false);
       return setStatus('documentStatusMessage', error.message, 'err');
     }
-    $('documentForm').reset();
+    form.reset();
+    setBusy(form, false);
     setStatus('documentStatusMessage', 'Document opgeladen.', 'ok');
     await loadAdminDocuments();
   }
 
   async function handleCostCreate(event) {
     event.preventDefault();
+    const form = event.currentTarget;
+    const amount = Number($('costAmount').value);
+    const payload = {
+      patient_id: $('costPatient').value,
+      care_date: $('costDate').value,
+      amount,
+      status: $('costStatus').value,
+      description: clean($('costDescription').value, 200),
+      notes: clean($('costNotes').value, 1000) || null
+    };
+    if (!payload.patient_id || !payload.care_date || !payload.description || !Number.isFinite(amount) || amount < 0 || amount > 99999) {
+      return setStatus('costStatusMessage', 'Controleer patiënt, datum, omschrijving en bedrag.', 'err');
+    }
+    setBusy(form, true);
     setStatus('costStatusMessage', 'Kost wordt opgeslagen...', '');
-    const payload = { patient_id: $('costPatient').value, care_date: $('costDate').value, amount: Number($('costAmount').value), status: $('costStatus').value, description: $('costDescription').value.trim(), notes: $('costNotes').value.trim() || null };
     const { error } = await app.client.from('costs').insert(payload);
+    setBusy(form, false);
     if (error) return setStatus('costStatusMessage', error.message, 'err');
-    $('costForm').reset();
+    form.reset();
     setStatus('costStatusMessage', 'Kost opgeslagen.', 'ok');
     await loadAdminCosts();
   }
@@ -401,7 +515,7 @@
         const path = btn.dataset.path;
         const { data, error } = await app.client.storage.from('patient-files').createSignedUrl(path, 300);
         if (error) throw error;
-        window.open(data.signedUrl, '_blank', 'noopener');
+        window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
       }
       if (action === 'request-contacted') {
         const { error } = await app.client.from('callback_requests').update({ status: 'gecontacteerd' }).eq('id', btn.dataset.id);
@@ -413,21 +527,21 @@
         if (error) throw error;
         await loadRequests();
       }
-      if (action === 'delete-appointment' && confirm('Afspraak verwijderen?')) {
+      if (action === 'delete-appointment' && confirm('Afspraak definitief verwijderen?')) {
         const { error } = await app.client.from('appointments').delete().eq('id', btn.dataset.id);
         if (error) throw error;
         await loadAdminAppointments();
       }
-      if (action === 'delete-cost' && confirm('Kost verwijderen?')) {
+      if (action === 'delete-cost' && confirm('Kost definitief verwijderen?')) {
         const { error } = await app.client.from('costs').delete().eq('id', btn.dataset.id);
         if (error) throw error;
         await loadAdminCosts();
       }
-      if (action === 'delete-doc' && confirm('Document verwijderen?')) {
-        const removed = await app.client.storage.from('patient-files').remove([btn.dataset.path]);
-        if (removed.error) throw removed.error;
+      if (action === 'delete-doc' && confirm('Document definitief verwijderen? Controleer of dit volgens de bewaartermijn/procedure mag.')) {
         const { error } = await app.client.from('documents').delete().eq('id', btn.dataset.id);
         if (error) throw error;
+        const removed = await app.client.storage.from('patient-files').remove([btn.dataset.path]);
+        if (removed.error) alert('Dossierrecord verwijderd, maar het bestand kon niet automatisch uit opslag verwijderd worden. Controleer Supabase Storage handmatig.');
         await loadAdminDocuments();
       }
       if (action === 'ics') {
@@ -444,11 +558,15 @@
     return new Date(date).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   }
 
+  function escapeICS(value) {
+    return String(value || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;');
+  }
+
   function downloadICS(appt) {
     const start = icsDate(appt.starts_at);
     const end = icsDate(appt.ends_at || new Date(new Date(appt.starts_at).getTime() + 30 * 60000));
-    const title = (appt.title || 'Afspraak Tamara Thuisverpleging').replace(/\n/g, ' ');
-    const location = (appt.location || '').replace(/\n/g, ' ');
+    const title = escapeICS(appt.title || 'Afspraak Tamara Thuisverpleging');
+    const location = escapeICS(appt.location || '');
     const ics = `BEGIN:VCALENDAR\nVERSION:2.0\nPRODID:-//Tamara Thuisverpleging//Patientenzone//NL\nBEGIN:VEVENT\nUID:${appt.id}@thuisverplegingtamara.be\nDTSTAMP:${icsDate(new Date())}\nDTSTART:${start}\nDTEND:${end}\nSUMMARY:${title}\nLOCATION:${location}\nEND:VEVENT\nEND:VCALENDAR`;
     const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
     const url = URL.createObjectURL(blob);

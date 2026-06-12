@@ -3,14 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Doorsturen naar patiëntenzone</title>
   <meta name="robots" content="noindex, nofollow">
-  <script>
-    (function () {
-      var target = 'patientenzone.html' + window.location.search + window.location.hash;
-      window.location.replace(target);
-    })();
-  </script>
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="refresh" content="0; url=patientenzone.html">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'none'; img-src 'self'; style-src 'self' 'unsafe-inline'; upgrade-insecure-requests">
+  <title>Doorsturen naar patiëntenzone</title>
+  <link rel="canonical" href="patientenzone.html">
 </head>
 <body>
   <p>U wordt doorgestuurd naar de <a href="patientenzone.html">patiëntenzone</a>.</p>

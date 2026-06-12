@@ -7,6 +7,8 @@
   <meta name="description" content="Beveiligde patiëntenzone voor afspraken, dossierdocumenten en kostenoverzicht van Tamara Thuisverpleging.">
   <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#6f8157">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; object-src 'none'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self' https://rwomgpjzsxrfpjnibrjn.supabase.co; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; form-action 'self'; upgrade-insecure-requests">
   <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body class="portal-page">
@@ -30,6 +32,7 @@
     <p class="eyebrow">Beveiligde patiëntenzone</p>
     <h1 style="font-size:clamp(2rem,6vw,3.8rem)">Patiëntenzone</h1>
     <p class="lead">Raadpleeg afspraken, dossierdocumenten en kostenoverzichten. Deel via de patiëntenzone alleen informatie wanneer Tamara u daar expliciet om vraagt.</p>
+    <div class="notice">Gebruik deze zone niet voor dringende medische communicatie. Bel Tamara rechtstreeks bij dringende of praktische vragen.</div>
     <div id="configWarning" class="notice danger hidden">Supabase is nog niet geconfigureerd in <code>assets/js/config.js</code>. De patiëntenzone werkt pas nadat de database en sleutel ingesteld zijn.</div>
 
     <div class="auth-tabs" role="tablist" aria-label="Aanmelden of account aanvragen">
@@ -38,37 +41,38 @@
       <button type="button" data-auth-tab="reset">Wachtwoord resetten</button>
     </div>
 
-    <form id="loginForm" class="auth-panel">
+    <form id="loginForm" class="auth-panel" novalidate>
       <div class="form-grid">
-        <div class="full"><label for="loginEmail">E-mail</label><input id="loginEmail" type="email" autocomplete="email" required></div>
-        <div class="full"><label for="loginPassword">Wachtwoord</label><input id="loginPassword" type="password" autocomplete="current-password" required></div>
+        <div class="full"><label for="loginEmail">E-mail</label><input id="loginEmail" type="email" autocomplete="email" maxlength="160" required></div>
+        <div class="full"><label for="loginPassword">Wachtwoord</label><input id="loginPassword" type="password" autocomplete="current-password" minlength="12" required></div>
       </div>
       <div class="toolbar"><button class="btn btn-primary" type="submit">Aanmelden</button><a class="btn btn-ghost" href="index.html#contact">Contact opnemen</a></div>
     </form>
 
-    <form id="signupForm" class="auth-panel hidden">
+    <form id="signupForm" class="auth-panel hidden" novalidate>
       <div class="notice">Een nieuw account blijft eerst in wachtstand. Tamara koppelt het account aan uw patiëntendossier.</div>
       <div class="form-grid" style="margin-top:14px">
-        <div><label for="signupName">Naam</label><input id="signupName" autocomplete="name" required></div>
-        <div><label for="signupPhone">Telefoon</label><input id="signupPhone" autocomplete="tel"></div>
-        <div class="full"><label for="signupEmail">E-mail</label><input id="signupEmail" type="email" autocomplete="email" required></div>
-        <div class="full"><label for="signupPassword">Wachtwoord</label><input id="signupPassword" type="password" autocomplete="new-password" minlength="10" required></div>
+        <div><label for="signupName">Naam</label><input id="signupName" autocomplete="name" maxlength="120" required></div>
+        <div><label for="signupPhone">Telefoon</label><input id="signupPhone" autocomplete="tel" maxlength="40"></div>
+        <div class="full"><label for="signupEmail">E-mail</label><input id="signupEmail" type="email" autocomplete="email" maxlength="160" required></div>
+        <div class="full"><label for="signupPassword">Wachtwoord</label><input id="signupPassword" type="password" autocomplete="new-password" minlength="12" required></div>
       </div>
+      <div class="notice">Gebruik minstens 12 tekens. Combineer woorden met cijfers of symbolen en hergebruik geen wachtwoord van andere websites.</div>
       <div class="toolbar"><button class="btn btn-primary" type="submit">Account aanvragen</button></div>
     </form>
 
-    <form id="resetForm" class="auth-panel hidden">
+    <form id="resetForm" class="auth-panel hidden" novalidate>
       <div class="form-grid">
-        <div class="full"><label for="resetEmail">E-mail</label><input id="resetEmail" type="email" autocomplete="email" required></div>
+        <div class="full"><label for="resetEmail">E-mail</label><input id="resetEmail" type="email" autocomplete="email" maxlength="160" required></div>
       </div>
       <div class="toolbar"><button class="btn btn-primary" type="submit">Resetlink verzenden</button></div>
     </form>
 
-    <form id="newPasswordForm" class="auth-panel hidden">
+    <form id="newPasswordForm" class="auth-panel hidden" novalidate>
       <div class="notice">U opent deze stap via de resetlink in uw mailbox. Kies een nieuw sterk wachtwoord.</div>
       <div class="form-grid" style="margin-top:14px">
-        <div class="full"><label for="newPassword">Nieuw wachtwoord</label><input id="newPassword" type="password" autocomplete="new-password" minlength="10" required></div>
-        <div class="full"><label for="newPasswordConfirm">Herhaal nieuw wachtwoord</label><input id="newPasswordConfirm" type="password" autocomplete="new-password" minlength="10" required></div>
+        <div class="full"><label for="newPassword">Nieuw wachtwoord</label><input id="newPassword" type="password" autocomplete="new-password" minlength="12" required></div>
+        <div class="full"><label for="newPasswordConfirm">Herhaal nieuw wachtwoord</label><input id="newPasswordConfirm" type="password" autocomplete="new-password" minlength="12" required></div>
       </div>
       <div class="toolbar"><button class="btn btn-primary" type="submit">Nieuw wachtwoord opslaan</button></div>
     </form>
@@ -129,10 +133,10 @@
         <div class="portal-card">
           <h2>Patiënten</h2>
           <p class="notice">Laat een patiënt eerst een login aanvragen. Daarna kan u het e-mailadres hier koppelen.</p>
-          <form id="patientForm" class="form-grid">
-            <div><label for="patientName">Naam</label><input id="patientName" required></div>
-            <div><label for="patientEmail">Login e-mail</label><input id="patientEmail" type="email" required></div>
-            <div><label for="patientPhone">Telefoon</label><input id="patientPhone"></div>
+          <form id="patientForm" class="form-grid" novalidate>
+            <div><label for="patientName">Naam</label><input id="patientName" maxlength="120" required></div>
+            <div><label for="patientEmail">Login e-mail</label><input id="patientEmail" type="email" maxlength="160" required></div>
+            <div><label for="patientPhone">Telefoon</label><input id="patientPhone" maxlength="40"></div>
             <div><label for="patientMunicipality">Gemeente</label><select id="patientMunicipality"><option>Zonhoven</option><option>Houthalen</option><option>Zolder</option><option>Andere</option></select></div>
             <div class="full"><button class="btn btn-primary" type="submit">Patiënt toevoegen/koppelen</button></div>
           </form>
@@ -144,15 +148,15 @@
       <section class="portal-view hidden" id="adminAppointments">
         <div class="portal-card">
           <h2>Afspraken beheren</h2>
-          <form id="appointmentForm" class="form-grid">
+          <form id="appointmentForm" class="form-grid" novalidate>
             <div class="full"><label for="appointmentPatient">Patiënt</label><select id="appointmentPatient" required></select></div>
-            <div><label for="appointmentTitle">Titel</label><input id="appointmentTitle" value="Thuisverpleging" required></div>
+            <div><label for="appointmentTitle">Titel</label><input id="appointmentTitle" value="Thuisverpleging" maxlength="120" required></div>
             <div><label for="appointmentType">Zorgtype</label><select id="appointmentType"><option>Algemene verpleging</option><option>Wondzorg</option><option>Controle</option><option>Andere</option></select></div>
             <div><label for="appointmentStart">Start</label><input id="appointmentStart" type="datetime-local" required></div>
             <div><label for="appointmentEnd">Einde</label><input id="appointmentEnd" type="datetime-local"></div>
-            <div><label for="appointmentLocation">Locatie</label><input id="appointmentLocation" placeholder="Aan huis"></div>
+            <div><label for="appointmentLocation">Locatie</label><input id="appointmentLocation" maxlength="160" placeholder="Aan huis"></div>
             <div><label for="appointmentStatus">Status</label><select id="appointmentStatus"><option>gepland</option><option>uitgevoerd</option><option>geannuleerd</option></select></div>
-            <div class="full"><label for="appointmentNotes">Korte nota</label><textarea id="appointmentNotes" placeholder="Vermijd onnodige medische details."></textarea></div>
+            <div class="full"><label for="appointmentNotes">Korte nota</label><textarea id="appointmentNotes" maxlength="1000" placeholder="Vermijd onnodige medische details."></textarea></div>
             <div class="full"><button class="btn btn-primary" type="submit">Afspraak opslaan</button></div>
           </form>
           <p id="appointmentStatusMessage" class="status"></p>
@@ -163,9 +167,9 @@
       <section class="portal-view hidden" id="adminDocuments">
         <div class="portal-card">
           <h2>Dossierdocumenten beheren</h2>
-          <form id="documentForm" class="form-grid">
+          <form id="documentForm" class="form-grid" novalidate>
             <div class="full"><label for="documentPatient">Patiënt</label><select id="documentPatient" required></select></div>
-            <div><label for="documentTitle">Titel</label><input id="documentTitle" required></div>
+            <div><label for="documentTitle">Titel</label><input id="documentTitle" maxlength="160" required></div>
             <div><label for="documentCategory">Categorie</label><select id="documentCategory"><option>Algemeen</option><option>Wondzorg</option><option>Voorschrift</option><option>Facturatie</option><option>Andere</option></select></div>
             <div class="full"><label for="documentFile">Bestand</label><input id="documentFile" type="file" accept="application/pdf,image/png,image/jpeg" required></div>
             <div class="full"><button class="btn btn-primary" type="submit">Document uploaden</button></div>
@@ -178,13 +182,13 @@
       <section class="portal-view hidden" id="adminCosts">
         <div class="portal-card">
           <h2>Kosten beheren</h2>
-          <form id="costForm" class="form-grid">
+          <form id="costForm" class="form-grid" novalidate>
             <div class="full"><label for="costPatient">Patiënt</label><select id="costPatient" required></select></div>
             <div><label for="costDate">Datum zorg</label><input id="costDate" type="date" required></div>
-            <div><label for="costAmount">Bedrag (€)</label><input id="costAmount" type="number" step="0.01" min="0" required></div>
+            <div><label for="costAmount">Bedrag (€)</label><input id="costAmount" type="number" step="0.01" min="0" max="99999" required></div>
             <div><label for="costStatus">Status</label><select id="costStatus"><option>in verwerking</option><option>te betalen</option><option>betaald</option></select></div>
-            <div class="full"><label for="costDescription">Omschrijving</label><input id="costDescription" placeholder="Bijvoorbeeld: remgeld / verzorging" required></div>
-            <div class="full"><label for="costNotes">Nota</label><textarea id="costNotes"></textarea></div>
+            <div class="full"><label for="costDescription">Omschrijving</label><input id="costDescription" maxlength="200" placeholder="Bijvoorbeeld: remgeld / verzorging" required></div>
+            <div class="full"><label for="costNotes">Nota</label><textarea id="costNotes" maxlength="1000"></textarea></div>
             <div class="full"><button class="btn btn-primary" type="submit">Kost opslaan</button></div>
           </form>
           <p id="costStatusMessage" class="status"></p>
